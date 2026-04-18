@@ -1,5 +1,13 @@
 version: "3.9"
 
+# ── BEFORE DEPLOYING — edit the values marked  ← CHANGE THIS  ─────────────────
+# 1. POSTGRES_PASSWORD   — strong random string
+# 2. JWT_SECRET          — strong random string (openssl rand -hex 32)
+# 3. ADMIN_PASSWORD      — your admin login password
+# 4. TRAINER_PASSWORD    — your trainer login password
+# 5. CORS_ORIGINS        — your VM's public URL, e.g. http://203.0.113.10:3000
+# ─────────────────────────────────────────────────────────────────────────────
+
 services:
 
   db:
@@ -8,7 +16,7 @@ services:
     environment:
       POSTGRES_DB:       kiosk
       POSTGRES_USER:     kiosk
-      POSTGRES_PASSWORD: kiosk
+      POSTGRES_PASSWORD: CHANGE_THIS_DB_PASSWORD   # ← CHANGE THIS
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +29,11 @@ services:
     build: ./backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://kiosk:kiosk@db:5432/kiosk
+      DATABASE_URL:    postgresql://kiosk:CHANGE_THIS_DB_PASSWORD@db:5432/kiosk  # ← match above
+      JWT_SECRET:      CHANGE_THIS_JWT_SECRET       # ← CHANGE THIS (openssl rand -hex 32)
+      ADMIN_PASSWORD:  CHANGE_THIS_ADMIN_PW         # ← CHANGE THIS
+      TRAINER_PASSWORD: CHANGE_THIS_TRAINER_PW      # ← CHANGE THIS
+      CORS_ORIGINS:    "*"                          # ← set to http://YOUR_VM_IP:3000 in prod
     depends_on:
       db:
         condition: service_healthy
@@ -32,7 +44,7 @@ services:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_API_URL: ""
+        NEXT_PUBLIC_API_URL: ""    # empty = use Next.js rewrites proxy (correct)
     restart: unless-stopped
     environment:
       BACKEND_URL: http://backend:8000

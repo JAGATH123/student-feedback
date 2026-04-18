@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from passlib.context import CryptContext
@@ -7,8 +8,8 @@ from sqlalchemy.orm import Session as DBSession
 from database import get_db
 import models
 
-SECRET_KEY = "emotion-kiosk-jwt-secret-2026"
-ALGORITHM  = "HS256"
+SECRET_KEY      = os.getenv("JWT_SECRET", "emotion-kiosk-jwt-secret-2026")
+ALGORITHM       = "HS256"
 TOKEN_TTL_HOURS = 12
 
 pwd_context  = CryptContext(schemes=["bcrypt"], deprecated="auto")

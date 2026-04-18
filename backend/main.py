@@ -40,19 +40,24 @@ def _migrate_db():
 
 
 def _seed_users():
+    """Seed default users only if the table is completely empty.
+    Override passwords via ADMIN_PASSWORD / TRAINER_PASSWORD env vars."""
     from database import SessionLocal
+    admin_pw   = os.getenv("ADMIN_PASSWORD",   "admin123")
+    trainer_pw = os.getenv("TRAINER_PASSWORD", "trainer123")
     db = SessionLocal()
     try:
         if not db.query(models.User).first():
-            db.add(models.User(username="admin",   password_hash=_auth.hash_password("admin123"),   role="admin",   full_name="Administrator"))
-            db.add(models.User(username="trainer1", password_hash=_auth.hash_password("trainer123"), role="trainer", full_name="Trainer One"))
+            db.add(models.User(username="admin",   password_hash=_auth.hash_password(admin_pw),   role="admin",   full_name="Administrator"))
+            db.add(models.User(username="trainer1", password_hash=_auth.hash_password(trainer_pw), role="trainer", full_name="Trainer One"))
             db.commit()
     finally:
         db.close()
 
+_CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",")]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
