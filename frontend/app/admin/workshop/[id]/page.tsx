@@ -8,18 +8,20 @@ import { getAuth, clearAuth, apiFetch } from "../../../lib/auth";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-// Maps all 8 model labels → display {emoji, label}
-const EMOTION_DISPLAY: Record<string, { emoji: string; label: string }> = {
-  happy:             { emoji: "😄", label: "Happy"   },
-  neutral:           { emoji: "😐", label: "Neutral" },
-  angry:             { emoji: "😠", label: "Angry"   },
-  sad:               { emoji: "😢", label: "Sad"     },
-  surprise:          { emoji: "😄", label: "Happy"   },
-  fear:              { emoji: "😢", label: "Sad"     },
-  disgust:           { emoji: "😠", label: "Angry"   },
-  contempt:          { emoji: "😠", label: "Angry"   },
-  face_not_detected: { emoji: "😶", label: "No Face" },
+// 3 sentiment categories — all 7 internal model emotions map here for display
+const SENTIMENT: Record<string, { emoji: string; label: string; color: string }> = {
+  POSITIVE: { emoji: "😊", label: "POSITIVE", color: "#059669" },
+  NEUTRAL:  { emoji: "😐", label: "NEUTRAL",  color: "#294973" },
+  NEGATIVE: { emoji: "😔", label: "NEGATIVE", color: "#D93A2B" },
 };
+
+function sentimentOf(emotion: string | null, bucket: string | null) {
+  if (!emotion || emotion === "face_not_detected") return null;
+  if (bucket && SENTIMENT[bucket]) return SENTIMENT[bucket];
+  if (["happy", "surprise"].includes(emotion)) return SENTIMENT.POSITIVE;
+  if (emotion === "neutral") return SENTIMENT.NEUTRAL;
+  return SENTIMENT.NEGATIVE;
+}
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -247,22 +249,26 @@ export default function WorkshopAnalytics() {
                         : <span className="badge badge-positive">COMPLETE</span>}
                     </td>
                     <td>
-                      {entry.dominant_emotion && entry.dominant_emotion !== "face_not_detected"
-                        ? (() => { const d = EMOTION_DISPLAY[entry.dominant_emotion] ?? { emoji: "🙂", label: entry.dominant_emotion }; return (
-                            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <span>{d.emoji}</span>
-                              <span style={{ fontFamily: "var(--font-body)", fontSize: 13, fontWeight: 600 }}>{d.label}</span>
-                            </span>); })()
-                        : entry.dominant_emotion === "face_not_detected"
-                          ? <span style={{ fontFamily: "var(--font-heading)", fontSize: 10, letterSpacing: "0.1em", color: "var(--text-muted)" }}>😶 NO FACE</span>
-                          : <span style={{ color: "var(--text-muted)" }}>—</span>}
+                      {(() => {
+                        const s = sentimentOf(entry.dominant_emotion, entry.rating_bucket);
+                        if (entry.dominant_emotion === "face_not_detected") return <span style={{ fontFamily: "var(--font-heading)", fontSize: 10, letterSpacing: "0.1em", color: "var(--text-muted)" }}>😶 NO FACE</span>;
+                        if (!s) return <span style={{ color: "var(--text-muted)" }}>—</span>;
+                        return (
+                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span>{s.emoji}</span>
+                            <span style={{ fontFamily: "var(--font-heading)", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: s.color }}>{s.label}</span>
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td>
-                      {entry.rating_bucket
-                        ? <span className={`badge ${BUCKET_BADGE[entry.rating_bucket]}`}>{entry.rating_bucket}</span>
-                        : entry.dominant_emotion === "face_not_detected"
+                      {(() => {
+                        const s = sentimentOf(entry.dominant_emotion, entry.rating_bucket);
+                        if (!s) return entry.dominant_emotion === "face_not_detected"
                           ? <span className="badge" style={{ background: "#f3f4f6", borderColor: "#d1d5db", color: "#9ca3af" }}>SKIPPED</span>
-                          : <span style={{ color: "var(--text-muted)" }}>—</span>}
+                          : <span style={{ color: "var(--text-muted)" }}>—</span>;
+                        return <span className={`badge ${BUCKET_BADGE[entry.rating_bucket ?? ""]}`}>{s.label}</span>;
+                      })()}
                     </td>
                     <td style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
                       {entry.duration_seconds !== null ? `${entry.duration_seconds}s` : "—"}

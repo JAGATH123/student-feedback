@@ -33,7 +33,8 @@
       "Bash(curl -s http://localhost:8000/health)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/kiosk/575fac5b-a634-4f96-bc72-d5081464b4d8)",
       "Bash(curl -sL https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/tiny_face_detector_model-weights_manifest.json -o c:/Users/TRG-LOF-131-047/Desktop/STUDENT_FEEDBACK/frontend/public/models/tiny_face_detector_model-weights_manifest.json)",
-      "Bash(curl -sL https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/tiny_face_detector_model-shard1 -o c:/Users/TRG-LOF-131-047/Desktop/STUDENT_FEEDBACK/frontend/public/models/tiny_face_detector_model-shard1)"
+      "Bash(curl -sL https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/tiny_face_detector_model-shard1 -o c:/Users/TRG-LOF-131-047/Desktop/STUDENT_FEEDBACK/frontend/public/models/tiny_face_detector_model-shard1)",
+      "Bash(taskkill /PID 17520 /F)"
     ]
   }
 }

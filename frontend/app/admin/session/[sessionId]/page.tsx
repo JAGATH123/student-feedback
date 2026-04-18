@@ -7,17 +7,21 @@ import { getAuth, clearAuth, apiFetch } from "../../../lib/auth";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-const EMOTION_DISPLAY: Record<string, { emoji: string; label: string }> = {
-  happy:             { emoji: "😄", label: "Happy"   },
-  neutral:           { emoji: "😐", label: "Neutral" },
-  angry:             { emoji: "😠", label: "Angry"   },
-  sad:               { emoji: "😢", label: "Sad"     },
-  surprise:          { emoji: "😄", label: "Happy"   },
-  fear:              { emoji: "😢", label: "Sad"     },
-  disgust:           { emoji: "😠", label: "Angry"   },
-  contempt:          { emoji: "😠", label: "Angry"   },
-  face_not_detected: { emoji: "😶", label: "No Face" },
+// Collapsed to 3 sentiment categories — internal 7-class model maps here for display
+const SENTIMENT: Record<string, { emoji: string; label: string; color: string }> = {
+  POSITIVE: { emoji: "😊", label: "POSITIVE", color: "#059669" },
+  NEUTRAL:  { emoji: "😐", label: "NEUTRAL",  color: "#294973" },
+  NEGATIVE: { emoji: "😔", label: "NEGATIVE", color: "#D93A2B" },
 };
+
+function sentimentOf(emotion: string | null, bucket: string | null) {
+  if (!emotion) return null;
+  if (emotion === "face_not_detected") return null;
+  if (bucket) return SENTIMENT[bucket] ?? null;
+  if (["happy", "surprise"].includes(emotion)) return SENTIMENT.POSITIVE;
+  if (emotion === "neutral") return SENTIMENT.NEUTRAL;
+  return SENTIMENT.NEGATIVE;
+}
 
 const BUCKET_COLOR: Record<string, { color: string; bg: string; border: string; label: string }> = {
   POSITIVE: { color: "#059669", bg: "#ecfdf5", border: "#6ee7b7", label: "POSITIVE" },
@@ -34,6 +38,7 @@ interface FeedEntry {
   dominant_emotion: string | null;
   rating_bucket: string | null;
   duration_seconds: number | null;
+  face_count: number;
   status: "IN_PROGRESS" | "COMPLETE";
 }
 
@@ -239,12 +244,13 @@ export default function LiveSessionPage() {
           ) : (
             <div>
               {feed.map((entry, idx) => {
-                const isNew  = newIds.has(entry.capture_id);
-                const bucket = entry.rating_bucket ? BUCKET_COLOR[entry.rating_bucket] : null;
+                const isNew     = newIds.has(entry.capture_id);
+                const sentiment = sentimentOf(entry.dominant_emotion, entry.rating_bucket);
+                const skipped   = entry.dominant_emotion === "face_not_detected";
                 return (
                   <div key={entry.capture_id} style={{
                     display: "grid",
-                    gridTemplateColumns: "40px 1fr 140px 130px 140px 80px",
+                    gridTemplateColumns: "40px 1fr 70px 130px 140px 80px",
                     alignItems: "center",
                     padding: "14px 24px",
                     borderBottom: "1px solid var(--border)",
@@ -261,28 +267,29 @@ export default function LiveSessionPage() {
                       #{feed.length - idx}
                     </div>
 
-                    {/* Emotion + name */}
+                    {/* Sentiment emoji + label + batch */}
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{ fontSize: 24 }}>
-                        {entry.dominant_emotion
-                          ? (EMOTION_DISPLAY[entry.dominant_emotion]?.emoji ?? "🙂")
-                          : "⏳"}
+                        {entry.status === "IN_PROGRESS" ? "⏳" : skipped ? "😶" : (sentiment?.emoji ?? "🙂")}
                       </span>
                       <div>
-                        <div style={{ fontFamily: "var(--font-heading)", fontSize: 12, fontWeight: 700, color: "var(--text-heading)", textTransform: "capitalize", letterSpacing: "0.05em" }}>
-                          {entry.dominant_emotion
-                            ? (EMOTION_DISPLAY[entry.dominant_emotion]?.label ?? entry.dominant_emotion)
-                            : "Capturing…"}
+                        <div style={{ fontFamily: "var(--font-heading)", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", color: sentiment ? sentiment.color : "var(--text-muted)" }}>
+                          {entry.status === "IN_PROGRESS"
+                            ? "CAPTURING…"
+                            : skipped ? "NO FACE"
+                            : (sentiment?.label ?? "—")}
                           {isNew && <span style={{ marginLeft: 8, fontFamily: "var(--font-heading)", fontSize: 9, letterSpacing: "0.2em", color: "var(--brand)", background: "rgba(28,77,140,0.12)", borderRadius: 4, padding: "2px 6px" }}>NEW</span>}
                         </div>
                         <div style={{ fontFamily: "var(--font-body)", fontSize: 11, color: "var(--text-muted)" }}>{entry.batch_name}</div>
                       </div>
                     </div>
 
-                    {/* Time */}
-                    <div>
-                      <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-heading)" }}>{formatTime(entry.started_at)}</div>
-                      <div style={{ fontFamily: "var(--font-body)", fontSize: 11, color: "var(--text-muted)" }}>{elapsed(entry.started_at)}</div>
+                    {/* Faces count */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontSize: 14 }}>👤</span>
+                      <span style={{ fontFamily: "var(--font-heading)", fontSize: 12, fontWeight: 700, color: entry.face_count > 1 ? "var(--brand)" : "var(--text-muted)" }}>
+                        {entry.face_count ?? 1}
+                      </span>
                     </div>
 
                     {/* Status */}
@@ -292,21 +299,25 @@ export default function LiveSessionPage() {
                           <span className="animate-pulse-dot" style={{ width: 5, height: 5, borderRadius: "50%", background: "#294973", display: "inline-block" }} />
                           IN PROGRESS
                         </span>
-                      ) : entry.dominant_emotion === "face_not_detected" ? (
+                      ) : skipped ? (
                         <span className="badge" style={{ background: "#f3f4f6", borderColor: "#d1d5db", color: "#9ca3af" }}>SKIPPED</span>
                       ) : (
                         <span className="badge" style={{ background: "#ecfdf5", borderColor: "#6ee7b7", color: "#059669" }}>COMPLETE</span>
                       )}
                     </div>
 
-                    {/* Rating */}
+                    {/* Rating (same as sentiment — no redundancy, keep for clarity) */}
                     <div>
-                      {bucket ? (
-                        <span className="badge" style={{ background: bucket.bg, borderColor: bucket.border, color: bucket.color }}>
-                          {bucket.label}
+                      {sentiment ? (
+                        <span className="badge" style={{
+                          background: sentiment.color === "#059669" ? "#ecfdf5" : sentiment.color === "#294973" ? "rgba(41,73,115,0.08)" : "rgba(217,58,43,0.08)",
+                          borderColor: sentiment.color === "#059669" ? "#6ee7b7" : sentiment.color === "#294973" ? "rgba(41,73,115,0.3)" : "rgba(217,58,43,0.3)",
+                          color: sentiment.color,
+                        }}>
+                          {sentiment.label}
                         </span>
-                      ) : entry.dominant_emotion === "face_not_detected" ? (
-                        <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>SKIPPED</span>
+                      ) : skipped ? (
+                        <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>—</span>
                       ) : (
                         <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>—</span>
                       )}

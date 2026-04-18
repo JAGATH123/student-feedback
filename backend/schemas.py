@@ -85,6 +85,7 @@ class CaptureResult(BaseModel):
     dominant_emotion: str
     rating_bucket: Optional[str] = None
     emotions: EmotionBreakdown
+    face_count: int = 1
 
 
 class FeedEntry(BaseModel):
@@ -97,6 +98,7 @@ class FeedEntry(BaseModel):
     dominant_emotion: Optional[str] = None
     rating_bucket: Optional[str] = None
     duration_seconds: Optional[float] = None
+    face_count: int = 1
     status: str
 
 

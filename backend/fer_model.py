@@ -1,62 +1,87 @@
 """
-FER inference — uses hsemotion-onnx (enet_b2_8_best, trained on AffectNet 1.7M images).
+FER inference — custom CNN trained on FER2013 (fer.h5), with ALL-face detection.
 
-Replaces the old FER2013-trained custom CNN. AffectNet is real-world data which
-generalises far better to webcam/kiosk conditions than FER2013.
+Architecture reproduced exactly from webcam_test.py (the original training script):
+  Block 1: Conv2D(32, 3x3, valid) → BN → ReLU → Dropout(0.25)
+  Block 2: Conv2D(64, 3x3, same)  → BN → ReLU → MaxPool(2x2)
+  Block 3: Conv2D(64, 3x3, valid) → BN → ReLU → Dropout(0.25)
+  Block 4: Conv2D(128,3x3, same)  → BN → ReLU → MaxPool(2x2)
+  Block 5: Conv2D(128,3x3, valid) → BN → ReLU → MaxPool(2x2)
+  Flatten → Dense(250, relu) → Dropout(0.5) → Dense(7, softmax)
 
-Face detection: OpenCV DNN SSD (res10_300x300) — kept from previous version.
-Emotion model:  EfficientNet-B2 via ONNX runtime, 8 classes:
-                Anger, Contempt, Disgust, Fear, Happiness, Neutral, Sadness, Surprise
+Input:   48×48 grayscale
+Classes: angry(0), disgust(1), fear(2), happy(3), sad(4), surprise(5), neutral(6)
+Preprocessing: equalizeHist + /255.0
+
+Face detection: OpenCV DNN SSD (res10_300x300) — detects ALL faces in the frame.
+Aggregation:    emotion scores are averaged across all detected faces.
 """
 
 import os
-import urllib.request  # force-loads submodule; fixes hsemotion-onnx on Python 3.13
 import cv2
 import numpy as np
 
 _BASE       = os.path.dirname(__file__)
 _PROTO_PATH = os.path.join(_BASE, "face_detector", "deploy.prototxt")
 _CAFFE_PATH = os.path.join(_BASE, "face_detector", "res10_300x300_ssd_iter_140000.caffemodel")
+_MODEL_PATH = os.path.join(_BASE, "fer.h5")
 
-# hsemotion label → our lowercase key
-_LABEL_MAP = {
-    "Anger":     "angry",
-    "Contempt":  "contempt",
-    "Disgust":   "disgust",
-    "Fear":      "fear",
-    "Happiness": "happy",
-    "Neutral":   "neutral",
-    "Sadness":   "sad",
-    "Surprise":  "surprise",
-}
+# FER2013 label order — index matches model softmax output
+_LABELS = ("angry", "disgust", "fear", "happy", "sad", "surprise", "neutral")
 
-_fer:      object | None = None
-_face_net: cv2.dnn.Net | None = None
+_model:    object         | None = None
+_face_net: "cv2.dnn.Net" | None = None
 
 
-_MODEL_NAME  = "enet_b2_8"
-_MODEL_CACHE = os.path.join(os.path.expanduser("~"), ".hsemotion", f"{_MODEL_NAME}.onnx")
+# ── Model construction ────────────────────────────────────────────────────────
+
+def _build_model():
+    """Rebuild the exact architecture from webcam_test.py, then load weights."""
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import (
+        Conv2D, BatchNormalization, Activation,
+        Dropout, MaxPooling2D, Flatten, Dense,
+    )
+    m = Sequential([
+        # Block 1
+        Conv2D(32, (3, 3), padding="valid", input_shape=(48, 48, 1)),
+        BatchNormalization(), Activation("relu"), Dropout(0.25),
+        # Block 2
+        Conv2D(64, (3, 3), padding="same"),
+        BatchNormalization(), Activation("relu"), MaxPooling2D((2, 2)),
+        # Block 3
+        Conv2D(64, (3, 3), padding="valid"),
+        BatchNormalization(), Activation("relu"), Dropout(0.25),
+        # Block 4
+        Conv2D(128, (3, 3), padding="same"),
+        BatchNormalization(), Activation("relu"), MaxPooling2D((2, 2)),
+        # Block 5
+        Conv2D(128, (3, 3), padding="valid"),
+        BatchNormalization(), Activation("relu"), MaxPooling2D((2, 2)),
+        # Fully connected
+        Flatten(),
+        Dense(250, activation="relu"),
+        Dropout(0.5),
+        Dense(7, activation="softmax"),
+    ])
+    m.load_weights(_MODEL_PATH)
+    return m
 
 
-def load_model() -> None:
-    """Pre-load both models at startup to avoid cold-start on first request."""
-    global _fer, _face_net
-    if _fer is None:
-        from hsemotion_onnx.facial_emotions import HSEmotionRecognizer
-        _fer = HSEmotionRecognizer(model_name=_MODEL_NAME)
-    if _face_net is None:
-        _face_net = cv2.dnn.readNetFromCaffe(_PROTO_PATH, _CAFFE_PATH)
+# ── Face detection (OpenCV DNN SSD) ──────────────────────────────────────────
 
-
-def _get_face_net() -> cv2.dnn.Net:
+def _get_face_net() -> "cv2.dnn.Net":
     global _face_net
     if _face_net is None:
         _face_net = cv2.dnn.readNetFromCaffe(_PROTO_PATH, _CAFFE_PATH)
     return _face_net
 
 
-def _detect_faces(img_bgr: np.ndarray, conf_thresh: float = 0.5):
-    """Returns list of (x1,y1,x2,y2,confidence,area) sorted largest-first."""
+def _detect_faces(img_bgr: np.ndarray, conf_thresh: float = 0.5) -> list:
+    """
+    Returns list of (x1, y1, x2, y2, confidence, area) for EVERY face
+    whose SSD confidence >= conf_thresh, sorted largest-first.
+    """
     net = _get_face_net()
     h, w = img_bgr.shape[:2]
     blob = cv2.dnn.blobFromImage(
@@ -74,74 +99,98 @@ def _detect_faces(img_bgr: np.ndarray, conf_thresh: float = 0.5):
         y1 = int(dets[0, 0, i, 4] * h)
         x2 = int(dets[0, 0, i, 5] * w)
         y2 = int(dets[0, 0, i, 6] * h)
+        if x2 <= x1 or y2 <= y1:
+            continue
         area = (x2 - x1) * (y2 - y1)
         results.append((x1, y1, x2, y2, conf, area))
 
-    results.sort(key=lambda r: -r[5])
+    results.sort(key=lambda r: -r[5])   # largest face first
     return results
+
+
+def _run_fer(gray: np.ndarray, x1: int, y1: int, x2: int, y2: int,
+             img_h: int, img_w: int) -> np.ndarray:
+    """Crop, pad, preprocess one face region and return softmax scores (7,)."""
+    pad  = int(0.15 * max(x2 - x1, y2 - y1))
+    rx1  = max(0, x1 - pad);  ry1 = max(0, y1 - pad)
+    rx2  = min(img_w, x2 + pad);  ry2 = min(img_h, y2 + pad)
+
+    roi  = gray[ry1:ry2, rx1:rx2]
+    roi  = cv2.resize(roi, (48, 48))
+    roi  = cv2.equalizeHist(roi)
+
+    arr  = roi.astype("float32")
+    arr  = np.expand_dims(arr, axis=-1)   # (48, 48, 1)
+    arr  = np.expand_dims(arr, axis=0)    # (1, 48, 48, 1)
+    arr /= 255.0
+
+    return _model.predict(arr, verbose=0)[0]   # (7,)
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def load_model() -> None:
+    """Pre-load both models at startup to avoid cold-start on first request."""
+    global _model, _face_net
+    if _model is None:
+        _model = _build_model()
+    if _face_net is None:
+        _face_net = cv2.dnn.readNetFromCaffe(_PROTO_PATH, _CAFFE_PATH)
 
 
 def predict_emotion(image_path: str) -> dict:
     """
-    Detect the largest face, run hsemotion-onnx inference.
+    Detect ALL faces in the image and run fer.h5 on each one.
+    Emotion scores are averaged across every detected face.
 
     Returns:
-        dominant_emotion : str | None  — None means no face detected
-        emotions         : dict[str, float]  — 0–100 scale, 8 keys
-        face_confidence  : float             — SSD detection score (0–1)
+        face_count       : int              — number of faces found (0 if none)
+        dominant_emotion : str | None       — None when no face detected
+        emotions         : dict[str, float] — averaged scores, 0–100 scale, 7 keys
+        face_confidence  : float            — mean SSD detection confidence (0–1)
 
     Raises:
         ValueError if the image file cannot be read.
     """
-    global _fer
-    if _fer is None:
-        from hsemotion_onnx.facial_emotions import HSEmotionRecognizer
-        _fer = HSEmotionRecognizer(model_name=_MODEL_NAME)
+    global _model
+    if _model is None:
+        _model = _build_model()
 
     img_bgr = cv2.imread(image_path)
     if img_bgr is None:
         raise ValueError("Could not read image file")
 
-    h, w = img_bgr.shape[:2]
-    faces = _detect_faces(img_bgr, conf_thresh=0.5)
+    h, w   = img_bgr.shape[:2]
+    faces  = _detect_faces(img_bgr, conf_thresh=0.5)
 
     if not faces:
         return {
+            "face_count":       0,
             "dominant_emotion": None,
-            "emotions":         {v: 0.0 for v in _LABEL_MAP.values()},
+            "emotions":         {lbl: 0.0 for lbl in _LABELS},
             "face_confidence":  0.0,
         }
 
-    x1, y1, x2, y2, face_conf, _ = faces[0]
+    gray       = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    all_scores = []   # each entry is a (7,) numpy array
+    all_confs  = []
 
-    # 15% padding so forehead and chin are included
-    pad = int(0.15 * max(x2 - x1, y2 - y1))
-    rx1 = max(0, x1 - pad)
-    ry1 = max(0, y1 - pad)
-    rx2 = min(w, x2 + pad)
-    ry2 = min(h, y2 + pad)
-    face_crop = img_bgr[ry1:ry2, rx1:rx2]
+    for x1, y1, x2, y2, face_conf, _ in faces:
+        preds = _run_fer(gray, x1, y1, x2, y2, h, w)
+        all_scores.append(preds)
+        all_confs.append(face_conf)
 
-    # hsemotion expects BGR numpy array of the face region
-    emotion_label, scores = _fer.predict_emotions(face_crop, logits=False)
-
-    # scores is a numpy array aligned to the model's internal label order
-    # Use the returned label string as dominant
-    dominant = _LABEL_MAP.get(emotion_label, emotion_label.lower())
-
-    # Build full emotions dict — map each label to its score (0–100 scale)
-    model_labels = list(_fer.idx_to_class.values()) if hasattr(_fer, "idx_to_class") else list(_LABEL_MAP.keys())
-    emotions: dict[str, float] = {}
-    for i, lbl in enumerate(model_labels):
-        key = _LABEL_MAP.get(lbl, lbl.lower())
-        emotions[key] = round(float(scores[i]) * 100, 4)
-
-    # Ensure all 8 keys are present
-    for v in _LABEL_MAP.values():
-        emotions.setdefault(v, 0.0)
+    # Average emotion scores across all detected faces
+    agg      = np.mean(all_scores, axis=0)          # (7,)
+    dominant = _LABELS[int(np.argmax(agg))]
+    emotions = {
+        lbl: round(float(agg[i]) * 100, 4)
+        for i, lbl in enumerate(_LABELS)
+    }
 
     return {
+        "face_count":       len(faces),
         "dominant_emotion": dominant,
         "emotions":         emotions,
-        "face_confidence":  float(face_conf),
+        "face_confidence":  float(np.mean(all_confs)),
     }

@@ -16,18 +16,18 @@ export default function KioskPage() {
   const faceApiLoaded = useRef(false);
   const countRef      = useRef(3);
 
-  const [state,     setState]     = useState<KioskState>("welcome");
-  const [captureId, setCaptureId] = useState<string | null>(null);
-  const [errorMsg,  setErrorMsg]  = useState("");
-  const [faceBox,   setFaceBox]   = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-  const [countdown, setCountdown] = useState(3);
+  const [state,      setState]      = useState<KioskState>("welcome");
+  const [captureId,  setCaptureId]  = useState<string | null>(null);
+  const [errorMsg,   setErrorMsg]   = useState("");
+  const [faceBoxes,  setFaceBoxes]  = useState<Array<{ x: number; y: number; w: number; h: number }>>([]);
+  const [countdown,  setCountdown]  = useState(3);
 
   // ── stop camera + detection loop ─────────────────────────────────────────────
   const stopCamera = useCallback(() => {
     if (detectorRef.current) { clearInterval(detectorRef.current); detectorRef.current = null; }
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
-    setFaceBox(null);
+    setFaceBoxes([]);
   }, []);
 
   // ── load tiny face detector model ────────────────────────────────────────────
@@ -71,18 +71,17 @@ export default function KioskPage() {
           const video = videoRef.current;
           if (!video || video.readyState < 2) return;
 
-          const result = await faceapi.detectSingleFace(
+          const results = await faceapi.detectAllFaces(
             video,
             new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 }),
           );
 
-          if (result) {
-            const { x, y, width: w, height: h } = result.box;
-            setFaceBox({ x, y, w, h });
+          if (results.length > 0) {
+            setFaceBoxes(results.map(r => ({ x: r.box.x, y: r.box.y, w: r.box.width, h: r.box.height })));
             if (detectorRef.current) { clearInterval(detectorRef.current); detectorRef.current = null; }
             setState("face_detected");
           } else {
-            setFaceBox(null);
+            setFaceBoxes([]);
           }
         }, 200);
 
@@ -161,7 +160,7 @@ export default function KioskPage() {
 
   // ── auto-restart: skip welcome, go straight to camera for next student ────────
   async function autoRestart() {
-    setErrorMsg(""); setFaceBox(null);
+    setErrorMsg(""); setFaceBoxes([]);
     try {
       const form = new FormData();
       form.append("session_id", sessionId);
@@ -184,7 +183,7 @@ export default function KioskPage() {
 
   function reset() {
     stopCamera();
-    setErrorMsg(""); setCaptureId(null); setFaceBox(null);
+    setErrorMsg(""); setCaptureId(null); setFaceBoxes([]);
     setState("welcome");
   }
 
@@ -281,26 +280,29 @@ export default function KioskPage() {
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }}
           />
 
-          {/* face bounding box overlay */}
-          {faceBox && videoRef.current && (
+          {/* face bounding boxes overlay — one rect per detected person */}
+          {faceBoxes.length > 0 && videoRef.current && (
             <svg
               viewBox={`0 0 ${videoRef.current.videoWidth} ${videoRef.current.videoHeight}`}
               preserveAspectRatio="xMidYMid slice"
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", transform: "scaleX(-1)" }}
             >
-              <rect
-                x={faceBox.x} y={faceBox.y}
-                width={faceBox.w} height={faceBox.h}
-                fill="none"
-                stroke={state === "face_detected" ? "#1C4D8C" : "rgba(255,255,255,0.7)"}
-                strokeWidth="4"
-                rx="10"
-                style={{ filter: state === "face_detected" ? "drop-shadow(0 0 10px #1C4D8C)" : "none", transition: "stroke 0.2s" }}
-              />
-              {state === "face_detected" && (
+              {faceBoxes.map((box, i) => (
+                <rect
+                  key={i}
+                  x={box.x} y={box.y}
+                  width={box.w} height={box.h}
+                  fill="none"
+                  stroke={state === "face_detected" ? "#1C4D8C" : "rgba(255,255,255,0.7)"}
+                  strokeWidth="4"
+                  rx="10"
+                  style={{ filter: state === "face_detected" ? "drop-shadow(0 0 10px #1C4D8C)" : "none", transition: "stroke 0.2s" }}
+                />
+              ))}
+              {state === "face_detected" && faceBoxes[0] && (
                 <text
-                  x={faceBox.x + faceBox.w / 2}
-                  y={faceBox.y - 14}
+                  x={faceBoxes[0].x + faceBoxes[0].w / 2}
+                  y={Math.max(30, faceBoxes[0].y - 14)}
                   textAnchor="middle"
                   fill="#1C4D8C"
                   fontSize="22"
@@ -308,7 +310,7 @@ export default function KioskPage() {
                   fontWeight="700"
                   style={{ filter: "drop-shadow(0 0 6px rgba(28,77,140,0.8))" }}
                 >
-                  ✓ FACE DETECTED
+                  ✓ {faceBoxes.length > 1 ? `${faceBoxes.length} FACES` : "FACE"} DETECTED
                 </text>
               )}
             </svg>
@@ -329,7 +331,7 @@ export default function KioskPage() {
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "32px 24px 52px", background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)", zIndex: 2, textAlign: "center" }}>
             {state === "scanning" && (
               <>
-                {!faceBox && (
+                {faceBoxes.length === 0 && (
                   <>
                     <p style={{ fontFamily: "var(--font-heading)", fontSize: 14, fontWeight: 700, letterSpacing: "0.25em", color: "rgba(255,255,255,0.9)", textTransform: "uppercase", marginBottom: 8 }}>
                       POSITION YOUR FACE IN THE FRAME
@@ -339,9 +341,9 @@ export default function KioskPage() {
                     </p>
                   </>
                 )}
-                {faceBox && (
+                {faceBoxes.length > 0 && (
                   <p style={{ fontFamily: "var(--font-heading)", fontSize: 14, fontWeight: 700, letterSpacing: "0.25em", color: "#1C4D8C", textTransform: "uppercase" }}>
-                    FACE DETECTED…
+                    {faceBoxes.length > 1 ? `${faceBoxes.length} FACES` : "FACE"} DETECTED…
                   </p>
                 )}
               </>
@@ -363,8 +365,8 @@ export default function KioskPage() {
             )}
           </div>
 
-          {/* corner guide brackets */}
-          {state === "scanning" && !faceBox && (
+          {/* corner guide brackets — only when no faces in view */}
+          {state === "scanning" && faceBoxes.length === 0 && (
             <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 1 }}>
               <div style={{ position: "relative", width: "clamp(200px, 40vw, 340px)", aspectRatio: "3/4" }}>
                 {[
@@ -386,7 +388,7 @@ export default function KioskPage() {
         <div style={{ textAlign: "center" }}>
           <div style={{ width: 72, height: 72, margin: "0 auto 24px", border: "4px solid var(--border)", borderTop: "4px solid var(--brand)", borderRadius: "50%" }} className="animate-spin-slow" />
           <h2 style={{ fontFamily: "var(--font-heading)", fontSize: 24, fontWeight: 700, color: "var(--text-heading)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>ANALYSING</h2>
-          <p style={{ fontFamily: "var(--font-body)", fontSize: 16, color: "var(--text-muted)" }}>DeepFace processing your expression…</p>
+          <p style={{ fontFamily: "var(--font-body)", fontSize: 16, color: "var(--text-muted)" }}>Analysing your expression…</p>
         </div>
       )}
 

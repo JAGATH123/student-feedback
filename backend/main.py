@@ -4,6 +4,7 @@ from datetime import datetime
 
 from fastapi import FastAPI, UploadFile, Form, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlalchemy.orm import Session as DBSession
 
 from database import engine, get_db, Base
@@ -19,8 +20,23 @@ app = FastAPI(title="Emotion Feedback Kiosk API")
 
 @app.on_event("startup")
 async def _warmup():
+    _migrate_db()
     fer_model.load_model()
     _seed_users()
+
+
+def _migrate_db():
+    """Add new columns to existing tables without dropping data."""
+    migrations = [
+        "ALTER TABLE captures ADD COLUMN face_count INTEGER DEFAULT 1",
+    ]
+    with engine.connect() as conn:
+        for sql in migrations:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+            except Exception:
+                pass  # column already exists
 
 
 def _seed_users():
@@ -281,10 +297,11 @@ async def capture(
         tmp_path = tmp.name
 
     try:
-        result     = fer_model.predict_emotion(tmp_path)
-        dominant   = result["dominant_emotion"]
-        confidence = result["face_confidence"]
-        emotions_f = result["emotions"]
+        result      = fer_model.predict_emotion(tmp_path)
+        dominant    = result["dominant_emotion"]
+        confidence  = result["face_confidence"]
+        emotions_f  = result["emotions"]
+        face_count  = result.get("face_count", 1)
     except Exception as exc:
         raise HTTPException(422, f"Emotion analysis failed: {exc}")
     finally:
@@ -294,6 +311,7 @@ async def capture(
         row.dominant_emotion = "face_not_detected"
         row.rating_bucket    = None
         row.face_confidence  = 0.0
+        row.face_count       = 0
         row.captured_at      = datetime.utcnow()
         db.commit()
         return schemas.CaptureResult(
@@ -301,6 +319,7 @@ async def capture(
             dominant_emotion="face_not_detected",
             rating_bucket=None,
             emotions=schemas.EmotionBreakdown(),
+            face_count=0,
         )
 
     rating = emotion_to_rating(dominant, emotions_f)
@@ -308,6 +327,7 @@ async def capture(
     row.dominant_emotion = dominant
     row.rating_bucket    = rating
     row.face_confidence  = confidence
+    row.face_count       = face_count
     row.captured_at      = datetime.utcnow()
     row.happy_score      = emotions_f.get("happy",    0.0)
     row.neutral_score    = emotions_f.get("neutral",  0.0)
@@ -323,6 +343,7 @@ async def capture(
         dominant_emotion=dominant,
         rating_bucket=rating,
         emotions=schemas.EmotionBreakdown(**{k: emotions_f.get(k, 0.0) for k in _EB_KEYS}),
+        face_count=face_count,
     )
 
 
@@ -346,6 +367,7 @@ def _build_feed(captures, db) -> list[schemas.FeedEntry]:
             dominant_emotion=c.dominant_emotion,
             rating_bucket=c.rating_bucket,
             duration_seconds=duration,
+            face_count=c.face_count or 1,
             status="COMPLETE" if c.dominant_emotion else "IN_PROGRESS",
         ))
     return entries

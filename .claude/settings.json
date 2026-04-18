@@ -43,7 +43,11 @@
       "Bash(gh auth *)",
       "Bash(git -C \"c:\\\\Users\\\\TRG-LOF-131-047\\\\Desktop\\\\STUDENT_FEEDBACK\" remote -v)",
       "Bash(git -C \"c:\\\\Users\\\\TRG-LOF-131-047\\\\Desktop\\\\STUDENT_FEEDBACK\" log --oneline -3)",
-      "Bash(git config *)"
+      "Bash(git config *)",
+      "Bash(powershell -Command \"cmdkey /delete:LegacyGeneric:target=git:https://github.com\")",
+      "Bash(git -C \"c:/Users/TRG-LOF-131-047/Desktop/STUDENT_FEEDBACK\" config --global credential.helper manager)",
+      "Bash(powershell -Command \"cmdkey /delete:LegacyGeneric:target=git:https://github.com/JAGATH123\")",
+      "Bash(git -C \"c:/Users/TRG-LOF-131-047/Desktop/STUDENT_FEEDBACK\" config --global credential.helper manager-core)"
     ],
     "additionalDirectories": [
       "\\tmp"

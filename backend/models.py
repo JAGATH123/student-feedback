@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import Column, String, Float, Date, DateTime, ForeignKey
+from sqlalchemy import Column, String, Float, Integer, Date, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -64,6 +64,7 @@ class Capture(Base):
     face_confidence  = Column(Float,   nullable=True)
     captured_at      = Column(DateTime, nullable=True)
 
+    face_count     = Column(Integer, nullable=True, default=1)
     happy_score    = Column(Float, nullable=True)
     neutral_score  = Column(Float, nullable=True)
     angry_score    = Column(Float, nullable=True)
