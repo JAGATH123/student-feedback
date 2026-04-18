@@ -15,9 +15,8 @@ const SENTIMENT: Record<string, { emoji: string; label: string; color: string }>
 };
 
 function sentimentOf(emotion: string | null, bucket: string | null) {
-  if (!emotion) return null;
-  if (emotion === "face_not_detected") return null;
-  if (bucket) return SENTIMENT[bucket] ?? null;
+  if (!emotion || emotion === "face_not_detected") return null;
+  if (bucket && SENTIMENT[bucket]) return SENTIMENT[bucket];
   if (["happy", "surprise"].includes(emotion)) return SENTIMENT.POSITIVE;
   if (emotion === "neutral") return SENTIMENT.NEUTRAL;
   return SENTIMENT.NEGATIVE;

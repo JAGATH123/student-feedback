@@ -21,11 +21,16 @@ const EMOTION_EMOJI: Record<string, string> = {
   surprise: "😊", fear: "😢", angry: "😢", disgust: "😢", contempt: "😢",
 };
 
-function toDisplayEmotion(raw: string | null): { label: string; emoji: string } {
+function toDisplayEmotion(raw: string | null, bucket: string | null = null): { label: string; emoji: string } {
   if (!raw || raw === "face_not_detected") return { label: "—", emoji: "😶" };
-  if (["happy", "surprise"].includes(raw))                         return { label: "HAPPY",   emoji: "😊" };
-  if (raw === "neutral")                                            return { label: "NEUTRAL",  emoji: "😐" };
-  return                                                                  { label: "SAD",     emoji: "😢" };
+  if (raw === "gesture_rating") {
+    if (bucket === "POSITIVE") return { label: "HAPPY",   emoji: "😊" };
+    if (bucket === "NEGATIVE") return { label: "SAD",     emoji: "😢" };
+    return                            { label: "NEUTRAL", emoji: "😐" };
+  }
+  if (["happy", "surprise"].includes(raw)) return { label: "HAPPY",   emoji: "😊" };
+  if (raw === "neutral")                   return { label: "NEUTRAL", emoji: "😐" };
+  return                                          { label: "SAD",     emoji: "😢" };
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -364,7 +369,7 @@ export default function AdminPage() {
                     {/* result */}
                     {entry.status === "COMPLETE" && entry.dominant_emotion ? (
                       (() => {
-                        const d = toDisplayEmotion(entry.dominant_emotion);
+                        const d = toDisplayEmotion(entry.dominant_emotion, entry.rating_bucket);
                         const badgeCls = d.label === "HAPPY" ? "badge-positive" : d.label === "SAD" ? "badge-negative" : "badge-average";
                         return (
                           <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
