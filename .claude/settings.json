@@ -1,0 +1,52 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(curl -s \"http://localhost:8000/sessions/2caf1aa9-a975-4bfc-ab5a-cbdbac4f08b8\")",
+      "Bash(curl -s \"http://localhost:8000/openapi.json\")",
+      "Bash(python -c \"import sys,json; routes = json.load\\(sys.stdin\\)['paths']; [print\\(m.upper\\(\\), p\\) for p,methods in routes.items\\(\\) for m in methods if m != 'parameters']\")",
+      "Bash(taskkill /F /IM python.exe)",
+      "Bash(taskkill /F /PID 23172 /PID 21004 /PID 24552)",
+      "Bash(powershell -Command \"Get-Process python | Stop-Process -Force\")",
+      "Bash(curl -s -X DELETE \"http://localhost:8000/sessions/575fac5b-a634-4f96-bc72-d5081464b4d8\" -w \"\\\\nHTTP STATUS: %{http_code}\")",
+      "Bash(curl -s \"http://localhost:8000/workshops\")",
+      "Bash(python -c \"import sys,json; [print\\(w['id'][:8], w['title']\\) for w in json.load\\(sys.stdin\\)]\")",
+      "Bash(curl -s -X DELETE \"http://localhost:8000/workshops/64502c2e-2e5e-49b2-9e10-d06f7d8f7c9e\" -w \"\\\\nHTTP: %{http_code}\")",
+      "Bash(python -c \"import sys,json; w=json.load\\(sys.stdin\\); print\\(w[0]['id']\\)\")",
+      "Bash(curl -s -X DELETE \"http://localhost:8000/workshops/64502c2e-a719-42bc-8faf-3e9dddd12983\" -w \"\\\\nHTTP: %{http_code}\")",
+      "Bash(ipconfig)",
+      "Bash(powershell -Command ' *)",
+      "Bash(pip install *)",
+      "Bash(curl -s -X POST \"http://localhost:8000/auth/login\" -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}')",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('role:', d.get\\('role'\\), '| token:', d.get\\('access_token','ERROR'\\)[:30]+'...'\\)\")",
+      "Bash(python -c \"import bcrypt; print\\('bcrypt ok:', bcrypt.__version__\\)\")",
+      "Bash(curl -s -X POST \"http://localhost:8000/auth/login\" -H \"Content-Type: application/json\" -d \"{\\\\\"username\\\\\":\\\\\"admin\\\\\",\\\\\"password\\\\\":\\\\\"admin123\\\\\"}\")",
+      "Bash(curl -s -X POST \"http://localhost:8000/auth/login\" -H \"Content-Type: application/json\" -d \"{\\\\\"username\\\\\":\\\\\"trainer1\\\\\",\\\\\"password\\\\\":\\\\\"trainer123\\\\\"}\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('role:', d['role'], '| user:', d['username']\\)\")",
+      "Bash(curl -s \"http://localhost:8000/health\")",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(python -c \"import hsemotion_onnx; import os; print\\(os.path.dirname\\(hsemotion_onnx.__file__\\)\\)\")",
+      "Read(//c/Users/TRG-LOF-131-047/AppData/Roaming/Python/Python313/site-packages/hsemotion_onnx/**)",
+      "Bash(powershell -Command \"Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/login)",
+      "Bash(powershell -Command \"Get-NetIPAddress -AddressFamily IPv4 | Select-Object IPAddress\")",
+      "Bash(powershell -Command \"New-NetFirewallRule -DisplayName 'Kiosk Frontend 3000' -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'Kiosk Backend 8000' -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -ErrorAction SilentlyContinue; echo 'Firewall rules added'\")",
+      "Bash(powershell -Command \"Get-Process python,node -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(curl -s -o /dev/null -w \"frontend:%{http_code}\" http://localhost:3000/login)",
+      "Bash(python -c \"import main; print\\('imports ok'\\)\")",
+      "Bash(Start-Process -FilePath \"python\" -ArgumentList \"run.py\" -WorkingDirectory \"c:\\\\Users\\\\TRG-LOF-131-047\\\\Desktop\\\\STUDENT_FEEDBACK\\\\backend\" -WindowStyle Hidden)",
+      "Bash(powershell -Command \"Start-Process python -ArgumentList 'run.py' -WorkingDirectory 'c:\\\\Users\\\\TRG-LOF-131-047\\\\Desktop\\\\STUDENT_FEEDBACK\\\\backend' -WindowStyle Hidden\")",
+      "Bash(powershell -Command \"Get-Process python -ErrorAction SilentlyContinue | Select-Object Id,CPU,WorkingSet\")",
+      "Bash(gh auth *)",
+      "Bash(git -C \"c:\\\\Users\\\\TRG-LOF-131-047\\\\Desktop\\\\STUDENT_FEEDBACK\" remote -v)",
+      "Bash(git -C \"c:\\\\Users\\\\TRG-LOF-131-047\\\\Desktop\\\\STUDENT_FEEDBACK\" log --oneline -3)",
+      "Bash(git config *)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}

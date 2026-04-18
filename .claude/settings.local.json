@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm install *)",
+      "Bash(python -m pip show uvicorn)",
+      "Bash(python -m pip show fastapi sqlalchemy psycopg2-binary)",
+      "Bash(python -m pip show pydantic python-multipart)",
+      "Bash(python -m pip show deepface)",
+      "Bash(where python *)",
+      "Bash(python -m pip list)",
+      "Bash(python -m pip install deepface)",
+      "Bash(python -m pip install opencv-python-headless)",
+      "Bash(python -c ' *)",
+      "Bash(python -m pip install tf-keras)",
+      "Bash(set PYTHONIOENCODING=utf-8)",
+      "Read(//tmp/**)",
+      "Bash(pip show *)",
+      "Bash(curl -s -X POST http://localhost:8000/api/start -F \"session_id=test\")",
+      "Bash(python -c \"from deepface import DeepFace; print\\('DeepFace OK'\\)\")",
+      "Bash(curl -s http://localhost:3000/kiosk/test-session)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/kiosk/test-session)",
+      "Bash(curl -s -X POST http://localhost:8000/api/capture -F 'image=@/tmp/test_face.jpg;type=image/jpeg' -F capture_id=__TRACKED_VAR__)",
+      "Bash(curl -s -X POST http://localhost:8000/api/capture -F 'image=@C:/Users/TRG-LOF-131-047/AppData/Local/Temp/test_face.jpg;type=image/jpeg' -F capture_id=__TRACKED_VAR__)",
+      "Bash(pkill -f \"uvicorn main:app\")",
+      "Bash(python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(curl -s http://localhost:8001/health)",
+      "Bash(awk '{print $5}')",
+      "Bash(taskkill //PID 2412 //F)",
+      "Bash(taskkill //IM python.exe //F)",
+      "Bash(python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/kiosk/575fac5b-a634-4f96-bc72-d5081464b4d8)",
+      "Bash(curl -sL https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/tiny_face_detector_model-weights_manifest.json -o c:/Users/TRG-LOF-131-047/Desktop/STUDENT_FEEDBACK/frontend/public/models/tiny_face_detector_model-weights_manifest.json)",
+      "Bash(curl -sL https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/tiny_face_detector_model-shard1 -o c:/Users/TRG-LOF-131-047/Desktop/STUDENT_FEEDBACK/frontend/public/models/tiny_face_detector_model-shard1)"
+    ]
+  }
+}

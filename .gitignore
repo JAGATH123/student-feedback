@@ -1,0 +1,36 @@
+# Database
+backend/kiosk.db
+*.db
+
+# Environment / secrets
+backend/.env
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# Old model (replaced by hsemotion-onnx)
+fer.h5
+backend/fer.h5
+
+# Old project folder
+Facial-Expression-Detection-main/
+webcam_test.py
+
+# Logs
+*.log
+C:temp*
+
+# Frontend
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+
+# OS
+.DS_Store
+Thumbs.db
