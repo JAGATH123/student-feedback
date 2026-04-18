@@ -174,31 +174,31 @@ export default function AdminPage() {
     <div style={{ background: "var(--bg-primary)", minHeight: "100vh" }}>
 
       {/* ── TOP BAR ──────────────────────────────────────────────────────────── */}
-      <header style={{
+      <header className="top-header-new" style={{
         background: "var(--bg-white)", borderBottom: "2px solid var(--border)",
         padding: "0 40px", height: 64,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         boxShadow: "var(--shadow-sm)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--brand)", boxShadow: "0 0 8px var(--brand)" }} className="animate-pulse-dot" />
-          <span style={{ fontFamily: "var(--font-heading)", fontSize: 16, fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-heading)" }}>EMOTION FEEDBACK PORTAL</span>
+        <div className="header-title" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div className="dot" style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--brand)", boxShadow: "0 0 8px var(--brand)" }} className="animate-pulse-dot" />
+          <span className="header-title-content" style={{ fontFamily: "var(--font-heading)", fontSize: 16, fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-heading)" }}>EMOTION FEEDBACK PORTAL</span>
           <span style={{ fontFamily: "var(--font-heading)", fontSize: 10, fontWeight: 500, letterSpacing: "0.3em", color: "var(--text-muted)" }}>
             {auth?.role === "admin" ? "ADMIN CONSOLE" : "TRAINER PORTAL"}
           </span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {lastPoll && (
+        <div className="admin-header" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {/* {lastPoll && (
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)" }}>
               UPDATED {formatTime(lastPoll.toISOString())}
             </span>
-          )}
-          <span className="badge badge-brand">LIVE</span>
-          {auth && (
+          )} */}
+          {/* <span className="badge badge-brand">LIVE</span> */}
+          {/* {auth && (
             <span className={`badge ${auth.role === "admin" ? "badge-negative" : "badge-positive"}`}>
               {auth.role.toUpperCase()}
             </span>
-          )}
+          )} */}
           {auth && (
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)" }}>{auth.username}</span>
           )}
@@ -209,15 +209,15 @@ export default function AdminPage() {
       <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px" }}>
 
         {/* ── STAT ROW ────────────────────────────────────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 28 }}>
+        <div className="countdown-sec" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 28 }}>
           {[
             { label: "Workshops",       value: workshops.length, color: "var(--brand)" },
             { label: "Total Responses", value: completed,        color: "#059669"      },
             { label: "In Progress",     value: inProgress,       color: "#d97706"      },
           ].map(({ label, value, color }) => (
             <div key={label} className="card" style={{ textAlign: "center", padding: "18px 12px" }}>
-              <div style={{ fontFamily: "var(--font-heading)", fontSize: 10, letterSpacing: "0.3em", color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase" }}>{label}</div>
-              <div style={{ fontFamily: "var(--font-heading)", fontSize: 32, fontWeight: 900, color, lineHeight: 1 }}>{value}</div>
+              <div className="text" style={{ fontFamily: "var(--font-heading)", fontSize: 10, letterSpacing: "0.3em", color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase" }}>{label}</div>
+              <div className="number" style={{ fontFamily: "var(--font-heading)", fontSize: 32, fontWeight: 900, color, lineHeight: 1 }}>{value}</div>
             </div>
           ))}
         </div>
@@ -301,8 +301,8 @@ export default function AdminPage() {
           <div className="card" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
             <div style={{ padding: "20px 20px 0" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <div style={{ fontFamily: "var(--font-heading)", fontSize: 12, fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ width: 24, height: 2, background: "var(--brand)", display: "inline-block" }} />
+                <div className="live-student-text" style={{ fontFamily: "var(--font-heading)", fontSize: 12, fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span  style={{ width: 24, height: 2, background: "var(--brand)", display: "inline-block" }} />
                   LIVE STUDENT FEED
                 </div>
                 {inProgress > 0 && (
@@ -384,7 +384,7 @@ export default function AdminPage() {
         </div>
 
         {/* ── WORKSHOP TABLE ────────────────────────────────────────────────── */}
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="card workshop-table" style={{ padding: 0, overflow: "hidden" }}>
           <div style={{ padding: "20px 24px 0" }}>
             <SectionHeader>All Workshops</SectionHeader>
           </div>
