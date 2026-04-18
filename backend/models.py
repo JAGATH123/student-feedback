@@ -65,6 +65,7 @@ class Capture(Base):
     captured_at      = Column(DateTime, nullable=True)
 
     face_count     = Column(Integer, nullable=True, default=1)
+    star_rating    = Column(Integer, nullable=True)
     happy_score    = Column(Float, nullable=True)
     neutral_score  = Column(Float, nullable=True)
     angry_score    = Column(Float, nullable=True)

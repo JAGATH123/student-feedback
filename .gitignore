@@ -1,3 +1,7 @@
+# ML model weights (large binary — store separately)
+*.h5
+*.onnx
+
 # Database
 backend/kiosk.db
 *.db
@@ -14,11 +18,7 @@ __pycache__/
 .Python
 *.egg-info/
 
-# Old model (replaced by hsemotion-onnx)
-fer.h5
-backend/fer.h5
-
-# Old project folder
+# Old project folder (not needed for deployment)
 Facial-Expression-Detection-main/
 webcam_test.py
 

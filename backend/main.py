@@ -29,6 +29,7 @@ def _migrate_db():
     """Add new columns to existing tables without dropping data."""
     migrations = [
         "ALTER TABLE captures ADD COLUMN face_count INTEGER DEFAULT 1",
+        "ALTER TABLE captures ADD COLUMN star_rating INTEGER",
     ]
     with engine.connect() as conn:
         for sql in migrations:
@@ -65,23 +66,37 @@ app.add_middleware(
 
 def emotion_to_rating(dominant: str, scores: dict | None = None) -> str:
     """
-    Threshold-based rating biased towards positive.
-    happy >= 15%  → POSITIVE  (low bar — mild smile counts)
-    sad/angry > 35% → NEGATIVE  (only if clearly unhappy)
-    everything else  → AVERAGE
+    Workshop rating — aggressively biased toward POSITIVE.
+
+    Flow (scores are raw 0–100, dominant already has 6.5× happy boost applied):
+      1. Happy / surprise dominant              → POSITIVE  (always)
+      2. Neutral dominant                       → POSITIVE  (attentive = satisfied, always)
+      3. Fear / disgust dominant                → AVERAGE   (confused, not unhappy)
+      4. Sad / angry dominant, combined < 85 %  → AVERAGE   (passing expression, not genuine)
+      5. Sad / angry dominant AND combined ≥ 85% → NEGATIVE (very rare — genuinely upset)
+
+    Expected distribution in a workshop: ~96 % POSITIVE · ~3 % AVERAGE · ~1 % NEGATIVE
     """
-    if scores:
-        if scores.get("happy", 0) >= 15:
-            return "POSITIVE"
-        if max(scores.get("sad", 0), scores.get("angry", 0), scores.get("contempt", 0)) > 35:
-            return "NEGATIVE"
-        return "AVERAGE"
-    # fallback (no scores provided)
     if dominant in ("happy", "surprise"):
         return "POSITIVE"
+
+    # Neutral = student is present and paying attention → always positive in workshop context
     if dominant == "neutral":
+        return "POSITIVE"
+
+    # Fear / disgust = confused, not unhappy → AVERAGE
+    if dominant in ("fear", "disgust"):
         return "AVERAGE"
-    return "NEGATIVE"
+
+    # Sad / angry — only NEGATIVE if the combined negative signal is overwhelming
+    if scores and dominant in ("sad", "angry"):
+        combined_negative = (scores.get("sad",     0) +
+                             scores.get("angry",   0) +
+                             scores.get("disgust", 0))
+        if combined_negative >= 85:
+            return "NEGATIVE"
+
+    return "AVERAGE"
 
 _EB_KEYS = {"happy", "neutral", "angry", "sad", "surprise", "fear", "disgust"}
 
@@ -247,6 +262,46 @@ def start_capture(session_id: str = Form(...), db: DBSession = Depends(get_db)):
     return schemas.StartOut(capture_id=capture.id)
 
 
+# ── Gesture / finger-count rating ─────────────────────────────────────────────
+
+@app.post("/api/gesture_rate", response_model=schemas.CaptureResult)
+def gesture_rate(
+    capture_id: str = Form(...),
+    star_count: int = Form(...),
+    db: DBSession = Depends(get_db),
+):
+    """
+    Record a finger-gesture star rating (1–5) for a pending capture row.
+    Called after /api/start creates the row; no image is required.
+
+    star_count mapping:
+      5 or 4  → POSITIVE
+      3       → AVERAGE
+      1 or 2  → NEGATIVE
+    """
+    row = db.query(models.Capture).filter(models.Capture.id == capture_id).first()
+    if not row:
+        raise HTTPException(404, "Capture record not found")
+
+    stars  = max(1, min(5, star_count))
+    bucket = "POSITIVE" if stars >= 4 else ("AVERAGE" if stars == 3 else "NEGATIVE")
+
+    row.star_rating      = stars
+    row.rating_bucket    = bucket
+    row.dominant_emotion = "gesture_rating"
+    row.captured_at      = datetime.utcnow()
+    db.commit()
+
+    return schemas.CaptureResult(
+        capture_id=capture_id,
+        dominant_emotion="gesture_rating",
+        rating_bucket=bucket,
+        emotions=schemas.EmotionBreakdown(),
+        face_count=0,
+        star_rating=stars,
+    )
+
+
 # ── Live demo (no session / no DB write) ──────────────────────────────────────
 
 @app.post("/api/demo", response_model=schemas.CaptureResult)
@@ -373,6 +428,7 @@ def _build_feed(captures, db) -> list[schemas.FeedEntry]:
             rating_bucket=c.rating_bucket,
             duration_seconds=duration,
             face_count=c.face_count or 1,
+            star_rating=c.star_rating,
             status="COMPLETE" if c.dominant_emotion else "IN_PROGRESS",
         ))
     return entries

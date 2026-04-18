@@ -10,9 +10,9 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 // 3 sentiment categories — all 7 internal model emotions map here for display
 const SENTIMENT: Record<string, { emoji: string; label: string; color: string }> = {
-  POSITIVE: { emoji: "😊", label: "POSITIVE", color: "#059669" },
-  NEUTRAL:  { emoji: "😐", label: "NEUTRAL",  color: "#294973" },
-  NEGATIVE: { emoji: "😔", label: "NEGATIVE", color: "#D93A2B" },
+  POSITIVE: { emoji: "😊", label: "HAPPY",   color: "#059669" },
+  NEUTRAL:  { emoji: "😐", label: "NEUTRAL", color: "#294973" },
+  NEGATIVE: { emoji: "😔", label: "SAD",     color: "#D93A2B" },
 };
 
 function sentimentOf(emotion: string | null, bucket: string | null) {
@@ -23,11 +23,13 @@ function sentimentOf(emotion: string | null, bucket: string | null) {
   return SENTIMENT.NEGATIVE;
 }
 
+const IST = { timeZone: "Asia/Kolkata" };
+
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return new Date(iso + "Z").toLocaleTimeString("en-IN", { ...IST, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 }
 function timeAgo(iso: string) {
-  const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  const secs = Math.floor((Date.now() - new Date(iso + "Z").getTime()) / 1000);
   if (secs < 60)   return `${secs}s ago`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
   return `${Math.floor(secs / 3600)}h ago`;
@@ -49,7 +51,8 @@ interface FeedEntry {
   capture_id: string; session_id: string; batch_name: string;
   started_at: string; captured_at: string | null;
   dominant_emotion: string | null; rating_bucket: string | null;
-  duration_seconds: number | null; status: "IN_PROGRESS" | "COMPLETE";
+  duration_seconds: number | null; star_rating: number | null;
+  status: "IN_PROGRESS" | "COMPLETE";
 }
 
 const PIE_COLORS  = ["#1C4D8C", "#294973", "#D93A2B"];
@@ -72,9 +75,11 @@ export default function WorkshopAnalytics() {
   const router   = useRouter();
   const auth     = getAuth();
 
-  const [data,    setData]    = useState<Analytics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [feed,    setFeed]    = useState<FeedEntry[]>([]);
+  const [data,      setData]      = useState<Analytics | null>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [feed,      setFeed]      = useState<FeedEntry[]>([]);
+  const [feedPage,  setFeedPage]  = useState(0);
+  const FEED_PER_PAGE = 10;
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => { if (!getAuth()) router.push("/login"); }, [router]);
@@ -135,27 +140,27 @@ export default function WorkshopAnalytics() {
     <div style={{ background: "var(--bg-primary)", minHeight: "100vh" }}>
 
       {/* ── HEADER ── */}
-      <header style={{ background: "var(--bg-white)", borderBottom: "2px solid var(--border)", padding: "0 40px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "var(--shadow-sm)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <Link href="/admin" className="btn btn-secondary" style={{ fontSize: 10, padding: "6px 12px" }}>← BACK</Link>
+      <header style={{ background: "var(--bg-white)", borderBottom: "2px solid var(--border)", padding: "10px 24px", boxShadow: "var(--shadow-sm)" }} className="admin-header">
+        <div className="admin-header-left">
+          <Link href="/admin" className="btn btn-secondary" style={{ fontSize: 10, padding: "6px 12px", whiteSpace: "nowrap" }}>← BACK</Link>
           <div>
-            <div style={{ fontFamily: "var(--font-heading)", fontSize: 15, fontWeight: 700, color: "var(--text-heading)" }}>{data.title.toUpperCase()}</div>
+            <div style={{ fontFamily: "var(--font-heading)", fontSize: "clamp(11px, 2.5vw, 15px)", fontWeight: 700, color: "var(--text-heading)" }}>{data.title.toUpperCase()}</div>
             <div style={{ fontFamily: "var(--font-heading)", fontSize: 10, letterSpacing: "0.2em", color: "var(--text-muted)" }}>ANALYTICS REPORT</div>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {inProgress > 0 && <span className="badge badge-average" style={{ display: "flex", alignItems: "center", gap: 5 }}><span className="animate-pulse-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706", display: "inline-block" }} />{inProgress} IN PROGRESS</span>}
+        <div className="admin-header-right">
+          {inProgress > 0 && <span className="badge badge-average" style={{ display: "flex", alignItems: "center", gap: 5 }}><span className="animate-pulse-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706", display: "inline-block" }} />{inProgress} ACTIVE</span>}
           <span className="badge badge-brand">{data.total_captures} CAPTURES</span>
           {auth && <span className={`badge ${auth.role === "admin" ? "badge-negative" : "badge-positive"}`}>{auth.role.toUpperCase()}</span>}
-          {auth && <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)" }}>{auth.username}</span>}
+          {auth && <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)" }} className="hide-mobile">{auth.username}</span>}
           <button onClick={() => { clearAuth(); router.push("/login"); }} className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 12px" }}>LOGOUT</button>
         </div>
       </header>
 
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "36px 24px" }}>
+      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "clamp(16px, 4vw, 36px) clamp(12px, 3vw, 24px)" }}>
 
         {/* ── 3 KPI CARDS ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
+        <div className="grid-4col" style={{ marginBottom: 28 }}>
           {[
             { label: "Total Responses", value: data.total_captures, color: "var(--brand)" },
             { label: "Positive",  value: `${pct(data.positive, data.total_captures)}%`, color: "#059669" },
@@ -170,7 +175,7 @@ export default function WorkshopAnalytics() {
         </div>
 
         {/* ── PIE + RATING BARS ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 20, marginBottom: 28 }}>
+        <div className="grid-pie" style={{ marginBottom: 28 }}>
 
           {/* Pie chart */}
           <div className="card">
@@ -220,7 +225,7 @@ export default function WorkshopAnalytics() {
         </div>
 
         {/* ── LIVE STUDENT FEED ── */}
-        <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 28 }}>
+        <div className="card tbl-wrap" style={{ padding: 0, overflow: "hidden", marginBottom: 28 }}>
           <div style={{ padding: "20px 24px 0" }}>
             <div style={{ fontFamily: "var(--font-heading)", fontSize: 12, fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ width: 24, height: 2, background: "var(--brand)", display: "inline-block" }} />
@@ -229,59 +234,108 @@ export default function WorkshopAnalytics() {
           </div>
           {feed.length === 0 ? (
             <div style={{ padding: "32px 24px", textAlign: "center", fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-muted)" }}>No activity yet. Feed updates every 3 seconds.</div>
-          ) : (
-            <table className="tbl">
-              <thead>
-                <tr><th>#</th><th>BATCH</th><th>STARTED</th><th>STATUS</th><th>EMOTION</th><th>RATING</th><th style={{ textAlign: "right" }}>DURATION</th></tr>
-              </thead>
-              <tbody>
-                {feed.map((entry, idx) => (
-                  <tr key={entry.capture_id} style={{ background: entry.status === "IN_PROGRESS" ? "rgba(28,77,140,0.03)" : "transparent" }}>
-                    <td style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)" }}>#{feed.length - idx}</td>
-                    <td style={{ fontWeight: 600 }}>{entry.batch_name}</td>
-                    <td>
-                      <div style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{formatTime(entry.started_at)}</div>
-                      <div style={{ fontFamily: "var(--font-body)", fontSize: 11, color: "var(--text-muted)" }}>{timeAgo(entry.started_at)}</div>
-                    </td>
-                    <td>
-                      {entry.status === "IN_PROGRESS"
-                        ? <span className="badge badge-average" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><span className="animate-pulse-dot" style={{ width: 5, height: 5, borderRadius: "50%", background: "#d97706", display: "inline-block" }} />IN PROGRESS</span>
-                        : <span className="badge badge-positive">COMPLETE</span>}
-                    </td>
-                    <td>
-                      {(() => {
-                        const s = sentimentOf(entry.dominant_emotion, entry.rating_bucket);
-                        if (entry.dominant_emotion === "face_not_detected") return <span style={{ fontFamily: "var(--font-heading)", fontSize: 10, letterSpacing: "0.1em", color: "var(--text-muted)" }}>😶 NO FACE</span>;
-                        if (!s) return <span style={{ color: "var(--text-muted)" }}>—</span>;
-                        return (
-                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span>{s.emoji}</span>
-                            <span style={{ fontFamily: "var(--font-heading)", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: s.color }}>{s.label}</span>
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td>
-                      {(() => {
-                        const s = sentimentOf(entry.dominant_emotion, entry.rating_bucket);
-                        if (!s) return entry.dominant_emotion === "face_not_detected"
-                          ? <span className="badge" style={{ background: "#f3f4f6", borderColor: "#d1d5db", color: "#9ca3af" }}>SKIPPED</span>
-                          : <span style={{ color: "var(--text-muted)" }}>—</span>;
-                        return <span className={`badge ${BUCKET_BADGE[entry.rating_bucket ?? ""]}`}>{s.label}</span>;
-                      })()}
-                    </td>
-                    <td style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
-                      {entry.duration_seconds !== null ? `${entry.duration_seconds}s` : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          ) : (() => {
+            const totalPages  = Math.ceil(feed.length / FEED_PER_PAGE);
+            const safePage    = Math.min(feedPage, totalPages - 1);
+            const pagedFeed   = feed.slice(safePage * FEED_PER_PAGE, (safePage + 1) * FEED_PER_PAGE);
+            return (
+              <>
+                <table className="tbl" style={{ minWidth: 580 }}>
+                  <thead>
+                    <tr>
+                      <th>#</th><th>BATCH</th>
+                      <th className="hide-mobile">STARTED</th>
+                      <th>STATUS</th><th>EMOTION</th><th>RATING</th>
+                      <th>★ STARS</th>
+                      <th style={{ textAlign: "right" }} className="hide-mobile">DURATION</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedFeed.map((entry, idx) => {
+                      const globalIdx = safePage * FEED_PER_PAGE + idx;
+                      return (
+                        <tr key={entry.capture_id} style={{ background: entry.status === "IN_PROGRESS" ? "rgba(28,77,140,0.03)" : "transparent" }}>
+                          <td style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)" }}>#{feed.length - globalIdx}</td>
+                          <td style={{ fontWeight: 600 }}>{entry.batch_name}</td>
+                          <td className="hide-mobile">
+                            <div style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{formatTime(entry.started_at)}</div>
+                            <div style={{ fontFamily: "var(--font-body)", fontSize: 11, color: "var(--text-muted)" }}>{timeAgo(entry.started_at)}</div>
+                          </td>
+                          <td>
+                            {entry.status === "IN_PROGRESS"
+                              ? <span className="badge badge-average" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><span className="animate-pulse-dot" style={{ width: 5, height: 5, borderRadius: "50%", background: "#d97706", display: "inline-block" }} />ACTIVE</span>
+                              : <span className="badge badge-positive">DONE</span>}
+                          </td>
+                          <td>
+                            {(() => {
+                              const s = sentimentOf(entry.dominant_emotion, entry.rating_bucket);
+                              if (entry.dominant_emotion === "face_not_detected") return <span style={{ fontFamily: "var(--font-heading)", fontSize: 10, letterSpacing: "0.1em", color: "var(--text-muted)" }}>😶 NO FACE</span>;
+                              if (entry.dominant_emotion === "gesture_rating") return <span style={{ fontFamily: "var(--font-heading)", fontSize: 10, color: "var(--text-muted)" }}>✋ GESTURE</span>;
+                              if (!s) return <span style={{ color: "var(--text-muted)" }}>—</span>;
+                              return (
+                                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span>{s.emoji}</span>
+                                  <span style={{ fontFamily: "var(--font-heading)", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: s.color }}>{s.label}</span>
+                                </span>
+                              );
+                            })()}
+                          </td>
+                          <td>
+                            {(() => {
+                              const s = sentimentOf(entry.dominant_emotion, entry.rating_bucket);
+                              if (!s) return entry.dominant_emotion === "face_not_detected"
+                                ? <span className="badge" style={{ background: "#f3f4f6", borderColor: "#d1d5db", color: "#9ca3af" }}>SKIPPED</span>
+                                : <span style={{ color: "var(--text-muted)" }}>—</span>;
+                              return <span className={`badge ${BUCKET_BADGE[entry.rating_bucket ?? ""]}`}>{s.label}</span>;
+                            })()}
+                          </td>
+                          <td style={{ fontSize: 13, color: "#d97706" }}>
+                            {entry.star_rating
+                              ? <span>{"★".repeat(entry.star_rating)}<span style={{ opacity: 0.25 }}>{"★".repeat(5 - entry.star_rating)}</span></span>
+                              : <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 11 }}>—</span>}
+                          </td>
+                          <td style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }} className="hide-mobile">
+                            {entry.duration_seconds !== null ? `${entry.duration_seconds}s` : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {/* ── Pagination bar ── */}
+                {totalPages > 1 && (
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "14px 20px", borderTop: "1px solid var(--border)",
+                    background: "#fafafa",
+                  }}>
+                    <span style={{ fontFamily: "var(--font-heading)", fontSize: 10, letterSpacing: "0.2em", color: "var(--text-muted)" }}>
+                      PAGE {safePage + 1} / {totalPages} &nbsp;·&nbsp; {feed.length} TOTAL
+                    </span>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={() => setFeedPage(p => Math.max(0, p - 1))}
+                        disabled={safePage === 0}
+                        className="btn btn-secondary"
+                        style={{ fontSize: 10, padding: "5px 14px", opacity: safePage === 0 ? 0.4 : 1 }}
+                      >← PREV</button>
+                      <button
+                        onClick={() => setFeedPage(p => Math.min(totalPages - 1, p + 1))}
+                        disabled={safePage >= totalPages - 1}
+                        className="btn btn-primary"
+                        style={{ fontSize: 10, padding: "5px 14px", opacity: safePage >= totalPages - 1 ? 0.4 : 1 }}
+                      >NEXT →</button>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {/* ── BATCH BREAKDOWN ── */}
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="card tbl-wrap" style={{ padding: 0, overflow: "hidden" }}>
           <div style={{ padding: "20px 24px 0" }}>
             <div style={{ fontFamily: "var(--font-heading)", fontSize: 12, fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ width: 24, height: 2, background: "var(--brand)", display: "inline-block" }} />

@@ -17,9 +17,16 @@ interface FeedEntry {
 }
 
 const EMOTION_EMOJI: Record<string, string> = {
-  happy: "😄", neutral: "😐", angry: "😠", sad: "😢",
-  surprise: "😲", fear: "😨", disgust: "🤢",
+  happy: "😊", neutral: "😐", sad: "😢",
+  surprise: "😊", fear: "😢", angry: "😢", disgust: "😢", contempt: "😢",
 };
+
+function toDisplayEmotion(raw: string | null): { label: string; emoji: string } {
+  if (!raw || raw === "face_not_detected") return { label: "—", emoji: "😶" };
+  if (["happy", "surprise"].includes(raw))                         return { label: "HAPPY",   emoji: "😊" };
+  if (raw === "neutral")                                            return { label: "NEUTRAL",  emoji: "😐" };
+  return                                                                  { label: "SAD",     emoji: "😢" };
+}
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
@@ -35,15 +42,18 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-function timeAgo(iso: string) {
-  const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (secs < 60)  return `${secs}s ago`;
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-  return `${Math.floor(secs / 3600)}h ago`;
+const IST = { timeZone: "Asia/Kolkata" };
+
+function timeOfDay(iso: string) {
+  const h = parseInt(new Date(iso + "Z").toLocaleString("en-IN", { ...IST, hour: "numeric", hour12: false }));
+  if (h >= 6  && h < 12) return "Morning";
+  if (h >= 12 && h < 16) return "Afternoon";
+  if (h >= 16 && h < 20) return "Evening";
+  return "Night";
 }
 
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return new Date(iso + "Z").toLocaleTimeString("en-IN", { ...IST, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 }
 
 export default function AdminPage() {
@@ -199,12 +209,11 @@ export default function AdminPage() {
       <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px" }}>
 
         {/* ── STAT ROW ────────────────────────────────────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 28 }}>
           {[
-            { label: "Workshops",    value: workshops.length, color: "var(--brand)"  },
-            { label: "Total Responses", value: completed,     color: "#059669"       },
-            { label: "In Progress",  value: inProgress,       color: "#d97706"       },
-            { label: "Privacy",      value: "✓ SAFE",         color: "var(--brand)"  },
+            { label: "Workshops",       value: workshops.length, color: "var(--brand)" },
+            { label: "Total Responses", value: completed,        color: "#059669"      },
+            { label: "In Progress",     value: inProgress,       color: "#d97706"      },
           ].map(({ label, value, color }) => (
             <div key={label} className="card" style={{ textAlign: "center", padding: "18px 12px" }}>
               <div style={{ fontFamily: "var(--font-heading)", fontSize: 10, letterSpacing: "0.3em", color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase" }}>{label}</div>
@@ -348,19 +357,22 @@ export default function AdminPage() {
                         </span>
                       </div>
                       <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)" }}>
-                        Started {formatTime(entry.started_at)} · {timeAgo(entry.started_at)}
-                        {entry.duration_seconds !== null && ` · ${entry.duration_seconds}s`}
+                        {formatTime(entry.started_at)} · {timeOfDay(entry.started_at)}
                       </div>
                     </div>
 
                     {/* result */}
                     {entry.status === "COMPLETE" && entry.dominant_emotion ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                        <span style={{ fontSize: 16 }}>{EMOTION_EMOJI[entry.dominant_emotion] ?? "🙂"}</span>
-                        <span className={`badge ${entry.rating_bucket === "POSITIVE" ? "badge-positive" : entry.rating_bucket === "NEGATIVE" ? "badge-negative" : "badge-average"}`}>
-                          {entry.dominant_emotion?.toUpperCase()}
-                        </span>
-                      </div>
+                      (() => {
+                        const d = toDisplayEmotion(entry.dominant_emotion);
+                        const badgeCls = d.label === "HAPPY" ? "badge-positive" : d.label === "SAD" ? "badge-negative" : "badge-average";
+                        return (
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                            <span style={{ fontSize: 16 }}>{d.emoji}</span>
+                            <span className={`badge ${badgeCls}`}>{d.label}</span>
+                          </div>
+                        );
+                      })()
                     ) : (
                       <span className="badge badge-average">IN PROGRESS…</span>
                     )}

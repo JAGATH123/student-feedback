@@ -9,9 +9,9 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 // Collapsed to 3 sentiment categories — internal 7-class model maps here for display
 const SENTIMENT: Record<string, { emoji: string; label: string; color: string }> = {
-  POSITIVE: { emoji: "😊", label: "POSITIVE", color: "#059669" },
-  NEUTRAL:  { emoji: "😐", label: "NEUTRAL",  color: "#294973" },
-  NEGATIVE: { emoji: "😔", label: "NEGATIVE", color: "#D93A2B" },
+  POSITIVE: { emoji: "😊", label: "HAPPY",   color: "#059669" },
+  NEUTRAL:  { emoji: "😐", label: "NEUTRAL", color: "#294973" },
+  NEGATIVE: { emoji: "😔", label: "SAD",     color: "#D93A2B" },
 };
 
 function sentimentOf(emotion: string | null, bucket: string | null) {
@@ -24,9 +24,9 @@ function sentimentOf(emotion: string | null, bucket: string | null) {
 }
 
 const BUCKET_COLOR: Record<string, { color: string; bg: string; border: string; label: string }> = {
-  POSITIVE: { color: "#059669", bg: "#ecfdf5", border: "#6ee7b7", label: "POSITIVE" },
+  POSITIVE: { color: "#059669", bg: "#ecfdf5", border: "#6ee7b7", label: "HAPPY" },
   AVERAGE:  { color: "#294973", bg: "rgba(28,77,140,0.08)", border: "rgba(28,77,140,0.25)", label: "NEUTRAL" },
-  NEGATIVE: { color: "#BF463B", bg: "rgba(217,58,43,0.08)", border: "rgba(217,58,43,0.25)", label: "NEGATIVE" },
+  NEGATIVE: { color: "#BF463B", bg: "rgba(217,58,43,0.08)", border: "rgba(217,58,43,0.25)", label: "SAD" },
 };
 
 interface FeedEntry {
@@ -39,6 +39,7 @@ interface FeedEntry {
   rating_bucket: string | null;
   duration_seconds: number | null;
   face_count: number;
+  star_rating: number | null;
   status: "IN_PROGRESS" | "COMPLETE";
 }
 
@@ -50,12 +51,14 @@ interface SessionInfo {
   ended_at: string | null;
 }
 
+const IST = { timeZone: "Asia/Kolkata" };
+
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return new Date(iso + "Z").toLocaleTimeString("en-IN", { ...IST, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 }
 
 function elapsed(iso: string) {
-  const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  const secs = Math.floor((Date.now() - new Date(iso + "Z").getTime()) / 1000);
   if (secs < 60)   return `${secs}s ago`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
   return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m ago`;
@@ -70,6 +73,8 @@ export default function LiveSessionPage() {
   const [feed,      setFeed]      = useState<FeedEntry[]>([]);
   const [newIds,    setNewIds]    = useState<Set<string>>(new Set());
   const [tick,      setTick]      = useState(0);
+  const [feedPage,  setFeedPage]  = useState(0);
+  const FEED_PER_PAGE = 10;
   const seenRef    = useRef<Set<string>>(new Set());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tickRef2   = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -95,6 +100,7 @@ export default function LiveSessionPage() {
         const freshIds = new Set(fresh.map(e => e.capture_id));
         fresh.forEach(e => seenRef.current.add(e.capture_id));
         setNewIds(prev => new Set([...prev, ...freshIds]));
+        setFeedPage(0); // jump to page 1 so newest entries are visible
         setTimeout(() => setNewIds(prev => {
           const next = new Set(prev);
           freshIds.forEach(id => next.delete(id));
@@ -131,44 +137,39 @@ export default function LiveSessionPage() {
     <div style={{ background: "var(--bg-primary)", minHeight: "100vh" }}>
 
       {/* ── HEADER ── */}
-      <header style={{
-        background: "var(--bg-white)", borderBottom: "2px solid var(--border)",
-        padding: "0 40px", height: 64,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        boxShadow: "var(--shadow-sm)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <Link href={session ? `/admin/workshop/${session.workshop_id}` : "/admin"} className="btn btn-secondary" style={{ fontSize: 10, padding: "6px 12px" }}>← BACK</Link>
+      <header style={{ background: "var(--bg-white)", borderBottom: "2px solid var(--border)", padding: "10px 24px", boxShadow: "var(--shadow-sm)" }} className="admin-header">
+        <div className="admin-header-left">
+          <Link href={session ? `/admin/workshop/${session.workshop_id}` : "/admin"} className="btn btn-secondary" style={{ fontSize: 10, padding: "6px 12px", whiteSpace: "nowrap" }}>← BACK</Link>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div className="animate-pulse-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--brand)" }} />
-              <span style={{ fontFamily: "var(--font-heading)", fontSize: 15, fontWeight: 700, color: "var(--text-heading)" }}>
-                LIVE SESSION — {session?.batch_name?.toUpperCase() ?? sessionId.slice(0, 8).toUpperCase()}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div className="animate-pulse-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--brand)", flexShrink: 0 }} />
+              <span style={{ fontFamily: "var(--font-heading)", fontSize: "clamp(11px, 2.5vw, 15px)", fontWeight: 700, color: "var(--text-heading)" }}>
+                LIVE — {session?.batch_name?.toUpperCase() ?? sessionId.slice(0, 8).toUpperCase()}
               </span>
             </div>
             <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
-              {sessionId.toUpperCase()} {session?.started_at ? `· STARTED ${formatTime(session.started_at)}` : ""}
+              {sessionId.slice(0, 8).toUpperCase()} {session?.started_at ? `· ${formatTime(session.started_at)}` : ""}
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="admin-header-right">
           {inProgress.length > 0 && (
             <span className="badge badge-average" style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
               <span className="animate-pulse-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "#294973", display: "inline-block" }} />
-              {inProgress.length} IN PROGRESS
+              {inProgress.length} ACTIVE
             </span>
           )}
-          <span className="badge badge-brand">{total} RESPONSES</span>
+          <span className="badge badge-brand">{total} RESP</span>
           {auth && <span className={`badge ${auth.role === "admin" ? "badge-negative" : "badge-positive"}`}>{auth.role.toUpperCase()}</span>}
-          {auth && <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)" }}>{auth.username}</span>}
+          {auth && <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)" }} className="hide-mobile">{auth.username}</span>}
           <button onClick={() => { clearAuth(); router.push("/login"); }} className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 12px" }}>LOGOUT</button>
         </div>
       </header>
 
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px" }}>
+      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "clamp(16px, 4vw, 32px) clamp(12px, 3vw, 24px)" }}>
 
         {/* ── LIVE STATS ROW ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 28 }}>
+        <div className="grid-4col" style={{ marginBottom: 28 }}>
           {[
             { label: "Total", value: total,    color: "var(--brand)" },
             { label: "Positive",  value: positive,  color: "#059669" },
@@ -218,7 +219,7 @@ export default function LiveSessionPage() {
         )}
 
         {/* ── LIVE FEED ── */}
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="card tbl-wrap" style={{ padding: 0, overflow: "hidden" }}>
           <div style={{ padding: "20px 24px", borderBottom: "2px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ width: 24, height: 2, background: "var(--brand)", display: "inline-block" }} />
@@ -241,97 +242,143 @@ export default function LiveSessionPage() {
                 Share the kiosk URL with students to begin
               </div>
             </div>
-          ) : (
-            <div>
-              {feed.map((entry, idx) => {
-                const isNew     = newIds.has(entry.capture_id);
-                const sentiment = sentimentOf(entry.dominant_emotion, entry.rating_bucket);
-                const skipped   = entry.dominant_emotion === "face_not_detected";
-                return (
-                  <div key={entry.capture_id} style={{
-                    display: "grid",
-                    gridTemplateColumns: "40px 1fr 70px 130px 140px 80px",
-                    alignItems: "center",
-                    padding: "14px 24px",
-                    borderBottom: "1px solid var(--border)",
-                    background: isNew
-                      ? "rgba(28,77,140,0.06)"
-                      : entry.status === "IN_PROGRESS"
-                        ? "rgba(28,77,140,0.02)"
-                        : "transparent",
-                    transition: "background 0.6s ease",
-                    animation: isNew ? "slide-up 0.35s ease-out forwards" : "none",
-                  }}>
-                    {/* # */}
-                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>
-                      #{feed.length - idx}
-                    </div>
-
-                    {/* Sentiment emoji + label + batch */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 24 }}>
-                        {entry.status === "IN_PROGRESS" ? "⏳" : skipped ? "😶" : (sentiment?.emoji ?? "🙂")}
-                      </span>
-                      <div>
-                        <div style={{ fontFamily: "var(--font-heading)", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", color: sentiment ? sentiment.color : "var(--text-muted)" }}>
-                          {entry.status === "IN_PROGRESS"
-                            ? "CAPTURING…"
-                            : skipped ? "NO FACE"
-                            : (sentiment?.label ?? "—")}
-                          {isNew && <span style={{ marginLeft: 8, fontFamily: "var(--font-heading)", fontSize: 9, letterSpacing: "0.2em", color: "var(--brand)", background: "rgba(28,77,140,0.12)", borderRadius: 4, padding: "2px 6px" }}>NEW</span>}
+          ) : (() => {
+            const totalPages = Math.ceil(feed.length / FEED_PER_PAGE);
+            const safePage   = Math.min(feedPage, totalPages - 1);
+            const pagedFeed  = feed.slice(safePage * FEED_PER_PAGE, (safePage + 1) * FEED_PER_PAGE);
+            return (
+              <>
+                <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                  {pagedFeed.map((entry, idx) => {
+                    const globalIdx = safePage * FEED_PER_PAGE + idx;
+                    const isNew     = newIds.has(entry.capture_id);
+                    const sentiment = sentimentOf(entry.dominant_emotion, entry.rating_bucket);
+                    const skipped   = entry.dominant_emotion === "face_not_detected";
+                    return (
+                      <div key={entry.capture_id} style={{
+                        display: "grid",
+                        gridTemplateColumns: "36px 1fr 56px 110px 120px 90px 72px",
+                        alignItems: "center",
+                        padding: "12px 20px",
+                        borderBottom: "1px solid var(--border)",
+                        minWidth: 560,
+                        background: isNew
+                          ? "rgba(28,77,140,0.06)"
+                          : entry.status === "IN_PROGRESS"
+                            ? "rgba(28,77,140,0.02)"
+                            : "transparent",
+                        transition: "background 0.6s ease",
+                        animation: isNew ? "slide-up 0.35s ease-out forwards" : "none",
+                      }}>
+                        {/* # */}
+                        <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>
+                          #{feed.length - globalIdx}
                         </div>
-                        <div style={{ fontFamily: "var(--font-body)", fontSize: 11, color: "var(--text-muted)" }}>{entry.batch_name}</div>
+
+                        {/* Sentiment emoji + label + batch */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontSize: 24 }}>
+                            {entry.status === "IN_PROGRESS" ? "⏳" : skipped ? "😶" : (sentiment?.emoji ?? "🙂")}
+                          </span>
+                          <div>
+                            <div style={{ fontFamily: "var(--font-heading)", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", color: sentiment ? sentiment.color : "var(--text-muted)" }}>
+                              {entry.status === "IN_PROGRESS"
+                                ? "CAPTURING…"
+                                : skipped ? "NO FACE"
+                                : (sentiment?.label ?? "—")}
+                              {isNew && <span style={{ marginLeft: 8, fontFamily: "var(--font-heading)", fontSize: 9, letterSpacing: "0.2em", color: "var(--brand)", background: "rgba(28,77,140,0.12)", borderRadius: 4, padding: "2px 6px" }}>NEW</span>}
+                            </div>
+                            <div style={{ fontFamily: "var(--font-body)", fontSize: 11, color: "var(--text-muted)" }}>{entry.batch_name}</div>
+                          </div>
+                        </div>
+
+                        {/* Faces count */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ fontSize: 14 }}>👤</span>
+                          <span style={{ fontFamily: "var(--font-heading)", fontSize: 12, fontWeight: 700, color: entry.face_count > 1 ? "var(--brand)" : "var(--text-muted)" }}>
+                            {entry.face_count ?? 1}
+                          </span>
+                        </div>
+
+                        {/* Status */}
+                        <div>
+                          {entry.status === "IN_PROGRESS" ? (
+                            <span className="badge" style={{ background: "rgba(28,77,140,0.08)", borderColor: "rgba(28,77,140,0.25)", color: "#294973", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                              <span className="animate-pulse-dot" style={{ width: 5, height: 5, borderRadius: "50%", background: "#294973", display: "inline-block" }} />
+                              IN PROGRESS
+                            </span>
+                          ) : skipped ? (
+                            <span className="badge" style={{ background: "#f3f4f6", borderColor: "#d1d5db", color: "#9ca3af" }}>SKIPPED</span>
+                          ) : (
+                            <span className="badge" style={{ background: "#ecfdf5", borderColor: "#6ee7b7", color: "#059669" }}>COMPLETE</span>
+                          )}
+                        </div>
+
+                        {/* Rating */}
+                        <div>
+                          {sentiment ? (
+                            <span className="badge" style={{
+                              background: sentiment.color === "#059669" ? "#ecfdf5" : sentiment.color === "#294973" ? "rgba(41,73,115,0.08)" : "rgba(217,58,43,0.08)",
+                              borderColor: sentiment.color === "#059669" ? "#6ee7b7" : sentiment.color === "#294973" ? "rgba(41,73,115,0.3)" : "rgba(217,58,43,0.3)",
+                              color: sentiment.color,
+                            }}>
+                              {sentiment.label}
+                            </span>
+                          ) : (
+                            <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>—</span>
+                          )}
+                        </div>
+
+                        {/* Stars */}
+                        <div style={{ textAlign: "center" }}>
+                          {entry.star_rating ? (
+                            <span style={{ fontSize: 13, color: "#d97706", letterSpacing: 1 }}>
+                              {"★".repeat(entry.star_rating)}
+                              <span style={{ opacity: 0.25 }}>{"★".repeat(5 - entry.star_rating)}</span>
+                            </span>
+                          ) : (
+                            <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 11 }}>—</span>
+                          )}
+                        </div>
+
+                        {/* Captured time */}
+                        <div style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
+                          {entry.captured_at ? new Date(entry.captured_at + "Z").toLocaleTimeString("en-IN", { ...IST, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : "—"}
+                        </div>
                       </div>
-                    </div>
+                    );
+                  })}
+                </div>
 
-                    {/* Faces count */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ fontSize: 14 }}>👤</span>
-                      <span style={{ fontFamily: "var(--font-heading)", fontSize: 12, fontWeight: 700, color: entry.face_count > 1 ? "var(--brand)" : "var(--text-muted)" }}>
-                        {entry.face_count ?? 1}
-                      </span>
-                    </div>
-
-                    {/* Status */}
-                    <div>
-                      {entry.status === "IN_PROGRESS" ? (
-                        <span className="badge" style={{ background: "rgba(28,77,140,0.08)", borderColor: "rgba(28,77,140,0.25)", color: "#294973", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                          <span className="animate-pulse-dot" style={{ width: 5, height: 5, borderRadius: "50%", background: "#294973", display: "inline-block" }} />
-                          IN PROGRESS
-                        </span>
-                      ) : skipped ? (
-                        <span className="badge" style={{ background: "#f3f4f6", borderColor: "#d1d5db", color: "#9ca3af" }}>SKIPPED</span>
-                      ) : (
-                        <span className="badge" style={{ background: "#ecfdf5", borderColor: "#6ee7b7", color: "#059669" }}>COMPLETE</span>
-                      )}
-                    </div>
-
-                    {/* Rating (same as sentiment — no redundancy, keep for clarity) */}
-                    <div>
-                      {sentiment ? (
-                        <span className="badge" style={{
-                          background: sentiment.color === "#059669" ? "#ecfdf5" : sentiment.color === "#294973" ? "rgba(41,73,115,0.08)" : "rgba(217,58,43,0.08)",
-                          borderColor: sentiment.color === "#059669" ? "#6ee7b7" : sentiment.color === "#294973" ? "rgba(41,73,115,0.3)" : "rgba(217,58,43,0.3)",
-                          color: sentiment.color,
-                        }}>
-                          {sentiment.label}
-                        </span>
-                      ) : skipped ? (
-                        <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>—</span>
-                      ) : (
-                        <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>—</span>
-                      )}
-                    </div>
-
-                    {/* Duration */}
-                    <div style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
-                      {entry.duration_seconds !== null ? `${entry.duration_seconds}s` : "—"}
+                {/* ── Pagination bar ── */}
+                {totalPages > 1 && (
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "14px 20px", borderTop: "1px solid var(--border)",
+                    background: "#fafafa",
+                  }}>
+                    <span style={{ fontFamily: "var(--font-heading)", fontSize: 10, letterSpacing: "0.2em", color: "var(--text-muted)" }}>
+                      PAGE {safePage + 1} / {totalPages} &nbsp;·&nbsp; {feed.length} TOTAL
+                    </span>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={() => setFeedPage(p => Math.max(0, p - 1))}
+                        disabled={safePage === 0}
+                        className="btn btn-secondary"
+                        style={{ fontSize: 10, padding: "5px 14px", opacity: safePage === 0 ? 0.4 : 1 }}
+                      >← PREV</button>
+                      <button
+                        onClick={() => setFeedPage(p => Math.min(totalPages - 1, p + 1))}
+                        disabled={safePage >= totalPages - 1}
+                        className="btn btn-primary"
+                        style={{ fontSize: 10, padding: "5px 14px", opacity: safePage >= totalPages - 1 ? 0.4 : 1 }}
+                      >NEXT →</button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                )}
+              </>
+            );
+          })()}
         </div>
 
       </main>

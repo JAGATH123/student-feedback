@@ -29,6 +29,21 @@ _MODEL_PATH = os.path.join(_BASE, "fer.h5")
 # FER2013 label order — index matches model softmax output
 _LABELS = ("angry", "disgust", "fear", "happy", "sad", "surprise", "neutral")
 
+# ── Workshop-mode score bias ───────────────────────────────────────────────────
+# Applied BEFORE picking the dominant emotion label.
+# Target: happy wins even at 10 % raw vs 70 % neutral raw.
+#   10 × 6.5 = 65  >  70 × 0.6 = 42  → happy wins ✓
+# Raw scores are stored unchanged; only dominant label is affected.
+_WORKSHOP_BOOST: dict[str, float] = {
+    "happy":   6.5,   # even a faint smile (10%) beats a strong neutral (70%)
+    "surprise": 3.0,  # curiosity/engagement → strongly positive
+    "neutral":  0.6,  # heavily suppressed — rarely wins now
+    "sad":     0.22,  # almost never wins
+    "fear":    0.18,
+    "disgust": 0.18,
+    "angry":   0.18,
+}
+
 _model:    object         | None = None
 _face_net: "cv2.dnn.Net" | None = None
 
@@ -181,8 +196,14 @@ def predict_emotion(image_path: str) -> dict:
         all_confs.append(face_conf)
 
     # Average emotion scores across all detected faces
-    agg      = np.mean(all_scores, axis=0)          # (7,)
-    dominant = _LABELS[int(np.argmax(agg))]
+    agg = np.mean(all_scores, axis=0)          # (7,)  raw averaged probabilities
+
+    # Apply workshop bias to choose dominant — raw scores stored unchanged
+    boost   = np.array([_WORKSHOP_BOOST[lbl] for lbl in _LABELS])
+    biased  = agg * boost
+    dominant = _LABELS[int(np.argmax(biased))]
+
+    # Store honest raw scores (0–100 scale) for analytics
     emotions = {
         lbl: round(float(agg[i]) * 100, 4)
         for i, lbl in enumerate(_LABELS)

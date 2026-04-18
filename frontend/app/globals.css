@@ -222,3 +222,81 @@ body {
   background: #0d1117;
   min-height: 100vh;
 }
+
+/* ── Stars display ─────────────────────────────────────────────────────────── */
+.stars-amber  { color: #d97706; }
+.stars-white  { color: #ffffff; }
+
+/* ── Scrollable table wrapper (for mobile) ─────────────────────────────────── */
+.tbl-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-lg);
+}
+
+/* ── Admin header responsive ───────────────────────────────────────────────── */
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-header-left  { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.admin-header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+
+/* ── Responsive grid helpers ───────────────────────────────────────────────── */
+.grid-4col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.grid-2col { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.grid-pie  { display: grid; grid-template-columns: 1fr 1.4fr; gap: 20px; }
+
+/* ── Responsive breakpoints ────────────────────────────────────────────────── */
+
+/* Tablet: ≤ 900px */
+@media (max-width: 900px) {
+  .grid-4col { grid-template-columns: repeat(2, 1fr); }
+  .grid-pie  { grid-template-columns: 1fr; }
+
+  .card { padding: 18px; }
+
+  .tbl th { font-size: 9px;  padding: 8px 12px; }
+  .tbl td { font-size: 13px; padding: 10px 12px; }
+
+  /* Admin header stacks on tablet */
+  .admin-header {
+    padding: 12px 20px !important;
+    height: auto !important;
+  }
+}
+
+/* Mobile: ≤ 600px */
+@media (max-width: 600px) {
+  .grid-4col { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .grid-2col { grid-template-columns: 1fr; gap: 12px; }
+  .grid-pie  { grid-template-columns: 1fr; gap: 12px; }
+
+  .card { padding: 14px; border-radius: var(--radius-md); }
+
+  .btn { padding: 8px 14px; font-size: 10px; }
+
+  .badge { font-size: 9px; padding: 2px 7px; }
+
+  .tbl th { font-size: 9px;  padding: 7px 8px; }
+  .tbl td { font-size: 12px; padding: 9px 8px; }
+
+  /* Hide less important table columns on mobile */
+  .tbl .hide-mobile { display: none; }
+
+  .admin-header {
+    padding: 10px 16px !important;
+    height: auto !important;
+  }
+  .admin-header-left  { gap: 10px; }
+  .admin-header-right { gap: 6px; }
+
+  /* Feed grid shrinks on mobile */
+  .feed-grid-mobile {
+    grid-template-columns: 36px 1fr 90px 70px !important;
+  }
+}
+
